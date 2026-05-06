@@ -5,7 +5,9 @@ from dash import Dash, dcc, html, Input, Output, State, dash_table, no_update
 from src.data_loader import load_serie_a_2017
 from src.data_processing import (
     desempenho_casa_fora,
+    forma_recente,
     liga_metricas,
+    maior_vitoria_e_derrota,
     metricas_time,
     pontos_por_rodada,
     tabela_classificacao,
@@ -79,10 +81,26 @@ def hero_logo(time: str | None) -> html.Div:
     )
 
 
-def hero_stat(label: str, valor) -> html.Div:
+def hero_stat(label: str, valor, sub: str | None = None) -> html.Div:
+    children = [html.Div(label, className="hero-stat-label"), html.Div(str(valor), className="hero-stat-value")]
+    if sub:
+        children.append(html.Div(sub, className="hero-stat-sub"))
+    return html.Div(children, className="hero-stat")
+
+
+def forma_pills(forma: list[str]) -> html.Div:
+    """Pílulas V/E/D dos últimos jogos. Ordem cronológica (esquerda = mais antigo)."""
+    if not forma:
+        return html.Div("Sem dados de forma", className="form-empty")
+    classe = {"V": "form-pill form-v", "E": "form-pill form-e", "D": "form-pill form-d"}
+    label = {"V": "Vitória", "E": "Empate", "D": "Derrota"}
+    pills = [html.Span(letra, className=classe[letra], title=label[letra]) for letra in forma]
     return html.Div(
-        className="hero-stat",
-        children=[html.Div(label, className="hero-stat-label"), html.Div(str(valor), className="hero-stat-value")],
+        className="form-row",
+        children=[
+            html.Span("Forma recente", className="form-row-label"),
+            html.Div(pills, className="form-pills"),
+        ],
     )
 
 
@@ -213,18 +231,33 @@ app.layout = html.Div(
                                 dash_table.DataTable(
                                     id="tabela-classificacao",
                                     columns=[
-                                        {"name": "Pos", "id": "posicao"},
+                                        {"name": "Pos", "id": "posicao", "type": "numeric"},
                                         {"name": "Clube", "id": "time_display"},
-                                        {"name": "P", "id": "pontos"},
-                                        {"name": "J", "id": "jogos"},
-                                        {"name": "V", "id": "vitorias"},
-                                        {"name": "E", "id": "empates"},
-                                        {"name": "D", "id": "derrotas"},
-                                        {"name": "GP", "id": "gols_pro"},
-                                        {"name": "GC", "id": "gols_contra"},
-                                        {"name": "SG", "id": "saldo"},
-                                        {"name": "%", "id": "aproveitamento"},
+                                        {"name": "P", "id": "pontos", "type": "numeric"},
+                                        {"name": "J", "id": "jogos", "type": "numeric"},
+                                        {"name": "V", "id": "vitorias", "type": "numeric"},
+                                        {"name": "E", "id": "empates", "type": "numeric"},
+                                        {"name": "D", "id": "derrotas", "type": "numeric"},
+                                        {"name": "GP", "id": "gols_pro", "type": "numeric"},
+                                        {"name": "GC", "id": "gols_contra", "type": "numeric"},
+                                        {"name": "SG", "id": "saldo", "type": "numeric"},
+                                        {"name": "%", "id": "aproveitamento", "type": "numeric"},
                                     ],
+                                    tooltip_header={
+                                        "posicao": "Posição na tabela",
+                                        "pontos": "Pontos (vitória=3, empate=1)",
+                                        "jogos": "Total de jogos disputados",
+                                        "vitorias": "Vitórias",
+                                        "empates": "Empates",
+                                        "derrotas": "Derrotas",
+                                        "gols_pro": "Gols a favor (pró)",
+                                        "gols_contra": "Gols sofridos (contra)",
+                                        "saldo": "Saldo de gols (pró − contra)",
+                                        "aproveitamento": "Aproveitamento: pontos ÷ pontos disputados",
+                                    },
+                                    tooltip_delay=0,
+                                    tooltip_duration=None,
+                                    sort_action="native",
                                     data=tabela.to_dict("records"),
                                     style_as_list_view=True,
                                     style_header={
@@ -269,8 +302,20 @@ app.layout = html.Div(
                 ),
 
                 html.Footer(
-                    "Fonte: Brazilian Football Matches · Kaggle · Projeto acadêmico Insper, 2026",
                     className="footer",
+                    children=[
+                        html.Span("Fonte: Brazilian Football Matches · Kaggle"),
+                        html.Span(" · ", className="footer-sep"),
+                        html.Span("Projeto acadêmico Insper · 2026"),
+                        html.Span(" · ", className="footer-sep"),
+                        html.A(
+                            "GitHub",
+                            href="https://github.com/DouglasCelestino/dashboard-brasileirao",
+                            target="_blank",
+                            rel="noopener",
+                            className="footer-link",
+                        ),
+                    ],
                 ),
             ],
         ),
@@ -369,6 +414,15 @@ def atualizar_dashboard(time_selecionado):
     nome_display = display(time_selecionado)
     m = metricas_time(df, time_selecionado)
     posicao = int(tabela.loc[tabela["time"] == time_selecionado, "posicao"].iloc[0])
+    forma = forma_recente(df, time_selecionado, n=5)
+    maior_v, maior_d = maior_vitoria_e_derrota(df, time_selecionado)
+
+    aprov_vs_liga = round(m["aproveitamento"] - liga["aproveitamento_medio"], 1)
+    aprov_sub = (
+        f"+{aprov_vs_liga} pp vs liga" if aprov_vs_liga > 0
+        else f"{aprov_vs_liga} pp vs liga" if aprov_vs_liga < 0
+        else "na média da liga"
+    )
 
     hero = html.Div(
         className="hero-inner",
@@ -381,14 +435,25 @@ def atualizar_dashboard(time_selecionado):
                     html.Div("Clube em destaque", className="hero-eyebrow"),
                     html.H2(nome_display, className="hero-name"),
                     html.Div(
-                        className="hero-stats",
+                        className="hero-stats hero-stats-6",
                         children=[
                             hero_stat("Posição", f"{posicao}º"),
                             hero_stat("Pontos", m["pontos"]),
-                            hero_stat("Aproveitamento", f"{m['aproveitamento']}%"),
+                            hero_stat("Aproveitamento", f"{m['aproveitamento']}%", sub=aprov_sub),
                             hero_stat("Saldo de gols", f"{m['saldo']:+d}"),
+                            hero_stat(
+                                "Maior vitória",
+                                maior_v["placar"] if maior_v else "—",
+                                sub=f"vs {display(maior_v['adversario'])} · {maior_v['mando']}" if maior_v else None,
+                            ),
+                            hero_stat(
+                                "Maior derrota",
+                                maior_d["placar"] if maior_d else "—",
+                                sub=f"vs {display(maior_d['adversario'])} · {maior_d['mando']}" if maior_d else None,
+                            ),
                         ],
                     ),
+                    forma_pills(forma),
                 ],
             ),
         ],
@@ -401,9 +466,11 @@ def atualizar_dashboard(time_selecionado):
         kpi_card("Derrotas", m["derrotas"], accent="#F25C5C"),
         kpi_card("Gols pró", m["gols_pro"], accent=accent),
         kpi_card("Gols sofridos", m["gols_contra"]),
-        kpi_card("Saldo", f"{m['saldo']:+d}", accent=accent),
-        kpi_card("Aproveitamento", f"{m['aproveitamento']}%",
-                 progress=m["aproveitamento"], accent=accent),
+        kpi_card("Finalizações", m["chutes_pro"],
+                 sub=f"{m['chutes_por_jogo']}/jogo · {m['escanteios_pro']} escanteios", accent=accent),
+        kpi_card("Conversão", f"{m['conversao']}%",
+                 sub=f"{m['gols_pro']} gols / {m['chutes_pro']} chutes",
+                 progress=min(m["conversao"] * 4, 100), accent=accent),
     ]
 
     jogos_time = pontos_por_rodada(df, time_selecionado)

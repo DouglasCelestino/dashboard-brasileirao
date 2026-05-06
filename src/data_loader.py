@@ -24,7 +24,12 @@ def load_serie_a_2017(path: Path | str = DEFAULT_CSV) -> pd.DataFrame:
     df["result"] = df.apply(_resultado, axis=1)
 
     df = df.sort_values("date").reset_index(drop=True)
-    return df[["date", "home", "home_goal", "away_goal", "away", "total_goals", "result"]]
+    return df[[
+        "date", "home", "home_goal", "away_goal", "away",
+        "total_goals", "result",
+        "home_shots", "away_shots",
+        "home_corner", "away_corner",
+    ]]
 
 
 def _resultado(row) -> str:

@@ -56,6 +56,7 @@ def liga_metricas(df: pd.DataFrame, tabela: pd.DataFrame) -> dict:
         "campeao_time": display(campeao["time"]),
         "campeao_pontos": int(campeao["pontos"]),
         "vice_time": display(tabela.iloc[1]["time"]),
+        "aproveitamento_medio": round(tabela["aproveitamento"].mean(), 1),
     }
 
 
@@ -75,7 +76,78 @@ def metricas_time(df: pd.DataFrame, time: str | None) -> dict:
             "pontos": 0,
             "aproveitamento": 0.0,
         }
-    return _estatisticas_time(df, time)
+    base = _estatisticas_time(df, time)
+    base.update(_estatisticas_chutes(df, time))
+    return base
+
+
+def forma_recente(df: pd.DataFrame, time: str, n: int = 5) -> list[str]:
+    """Últimos n jogos do time. Retorna lista de 'V', 'E', 'D' em ordem cronológica."""
+    casa = df[df["home"] == time].assign(_mando="H")
+    fora = df[df["away"] == time].assign(_mando="A")
+    jogos = pd.concat([casa, fora]).sort_values("date").tail(n)
+    forma = []
+    for _, j in jogos.iterrows():
+        if j["result"] == "D":
+            forma.append("E")
+        elif (j["_mando"] == "H" and j["result"] == "H") or (j["_mando"] == "A" and j["result"] == "A"):
+            forma.append("V")
+        else:
+            forma.append("D")
+    return forma
+
+
+def maior_vitoria_e_derrota(df: pd.DataFrame, time: str) -> tuple[dict | None, dict | None]:
+    """Maior vitória e maior derrota do time, com placar e adversário."""
+    casa = df[df["home"] == time].copy()
+    fora = df[df["away"] == time].copy()
+
+    casa["diff"] = casa["home_goal"] - casa["away_goal"]
+    casa["adversario"] = casa["away"]
+    casa["mando"] = "Casa"
+    casa["placar"] = casa["home_goal"].astype(int).astype(str) + " × " + casa["away_goal"].astype(int).astype(str)
+
+    fora["diff"] = fora["away_goal"] - fora["home_goal"]
+    fora["adversario"] = fora["home"]
+    fora["mando"] = "Fora"
+    fora["placar"] = fora["away_goal"].astype(int).astype(str) + " × " + fora["home_goal"].astype(int).astype(str)
+
+    cols = ["date", "adversario", "mando", "placar", "diff"]
+    todos = pd.concat([casa[cols], fora[cols]])
+    if not len(todos):
+        return None, None
+
+    melhor = todos.loc[todos["diff"].idxmax()]
+    pior = todos.loc[todos["diff"].idxmin()]
+    return _row_to_dict(melhor), _row_to_dict(pior)
+
+
+def _row_to_dict(row) -> dict:
+    return {
+        "data": row["date"].strftime("%d/%m/%Y") if hasattr(row["date"], "strftime") else str(row["date"]),
+        "adversario": row["adversario"],
+        "mando": row["mando"],
+        "placar": row["placar"],
+        "diff": int(row["diff"]),
+    }
+
+
+def _estatisticas_chutes(df: pd.DataFrame, time: str) -> dict:
+    casa = df[df["home"] == time]
+    fora = df[df["away"] == time]
+    chutes_pro = casa["home_shots"].fillna(0).sum() + fora["away_shots"].fillna(0).sum()
+    chutes_contra = casa["away_shots"].fillna(0).sum() + fora["home_shots"].fillna(0).sum()
+    escanteios_pro = casa["home_corner"].fillna(0).sum() + fora["away_corner"].fillna(0).sum()
+    n = len(casa) + len(fora)
+    gols_pro = int(casa["home_goal"].sum() + fora["away_goal"].sum())
+    return {
+        "chutes_pro": int(chutes_pro),
+        "chutes_contra": int(chutes_contra),
+        "chutes_por_jogo": round(chutes_pro / n, 1) if n else 0.0,
+        "conversao": round(gols_pro / chutes_pro * 100, 1) if chutes_pro else 0.0,
+        "escanteios_pro": int(escanteios_pro),
+        "escanteios_por_jogo": round(escanteios_pro / n, 1) if n else 0.0,
+    }
 
 
 def pontos_por_rodada(df: pd.DataFrame, time: str) -> pd.DataFrame:

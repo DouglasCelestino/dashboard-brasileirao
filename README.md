@@ -39,18 +39,20 @@ A camada de dados é compartilhada entre as duas: `src/data_loader.py` e `src/da
 ### Dashboard web (Dash)
 
 - **Tema escuro** com identidade visual sincronizada à cor oficial de cada clube.
-- **Hero section** com logo do clube, posição na tabela, pontos, aproveitamento e saldo.
-- **8 KPI cards reativos**: jogos, vitórias, empates, derrotas, gols pró/sofridos, saldo, aproveitamento (com mini progress bar).
-- **Modo "Todos os times"** com KPIs próprios da liga (% mandante/empate/visitante, total de gols, maior goleada, líder em gols, campeão e vice).
-- **Tabela de classificação** com indicadores G4 (verde) e Z4 (vermelho), clicável: clicar em uma linha seleciona o clube em todo o dashboard.
-- **4 gráficos** que reagem ao clube:
+- **Hero section** rica: logo do clube, posição, pontos, aproveitamento (com comparação vs média da liga), saldo, **maior vitória**, **maior derrota** e **forma recente** (últimos 5 jogos como pílulas V/E/D coloridas).
+- **8 KPI cards reativos**:
+  - Modo time: jogos, V/E/D, gols pró/sofridos, **finalizações** (com chutes/jogo + escanteios) e **conversão** (% gols/chutes, com progress bar).
+  - Modo liga: % mandante/empate/visitante, total de gols, maior goleada, líder em gols, campeão e vice.
+- **Tabela de classificação** ordenável (clique nos cabeçalhos), com **tooltips** explicando cada coluna (P, J, V, E, D, GP, GC, SG, %), faixas G4/Z4 destacadas e clicável (clicar numa linha seleciona o clube em todo o dashboard).
+- **4 gráficos** reativos ao clube:
   - Pontos acumulados por rodada (com linha tracejada do campeão como referência).
-  - Casa vs Fora (V/E/D do clube).
-  - Gols marcados — Top 10 (com clube selecionado em destaque, mesmo se fora do Top 10).
+  - Casa vs Fora (V/E/D do clube ou distribuição da liga).
+  - Gols marcados — Top 10 (com clube destacado, mesmo se fora do Top 10).
   - Gols pró × sofridos — Top 10.
 - **Top 10 jogos com mais gols** em tabela HTML estilizada, com placares destacados em pílula e linhas do clube tingidas em accent.
 - **Display names** com tildes/abreviações corretas (Grêmio, São Paulo, Athletico-PR, Atlético-MG, etc.).
-- Responsivo: 2 breakpoints (980 px e 760 px).
+- **Footer com link do GitHub**, fonte do dataset e crédito.
+- Responsivo: 3 breakpoints (1180 px, 980 px, 760 px).
 
 ### Dashboard Excel
 
@@ -179,6 +181,23 @@ Dataset público **Brazilian Football Matches** disponível no Kaggle. O arquivo
 - Maior goleada: Chapecoense 3×6 Grêmio (9 gols) ✓
 - Líder em gols pró: Palmeiras (61) ✓
 - Melhor defesa: Corinthians (30 sofridos) ✓
+- Total de finalizações: 8.183 (~21,5/jogo) ✓
+- Conversão Corinthians: 12,5% (50 gols / 401 chutes) ✓
+
+### Dados utilizados do CSV
+
+Do dataset original são consumidas:
+
+| Coluna   | Uso |
+|----------|-----|
+| `tournament` | Filtro: `Serie A` |
+| `date`   | Filtro de ano (2017), ordenação cronológica, eixo do gráfico de pontos acumulados |
+| `home`, `away` | Identificação dos clubes |
+| `home_goal`, `away_goal` | Gols pró/contra, saldo, maior vitória/derrota, total de gols |
+| `home_shots`, `away_shots` | Finalizações totais, chutes/jogo, % conversão |
+| `home_corner`, `away_corner` | Escanteios pró por clube, escanteios/jogo |
+
+As demais colunas do CSV (`home_attack`, `away_attack`, `ht_diff`, `at_diff`, `ht_result`, `at_result`, `total_corners`, `time`) **não são usadas** por não agregarem clareza ou serem redundantes com o que já é calculado.
 
 ## Próximos passos
 
